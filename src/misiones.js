@@ -26,7 +26,16 @@ import { ESTADOS } from './datos.js'
 // Pista: prueba en la consola 0.1 + 0.2 y verás por qué hay que redondear.
 //        Math.round(x * 100) / 100
 export function totalPedido(pedido) {
-  return 0 // TODO
+  const items = pedido.items || []
+
+  const subtotal = items.reduce((suma, item) => {
+    return suma + item.cantidad * item.precioUnitario
+  }, 0)
+
+  const descuento = pedido.descuento || 0
+  const total = subtotal * (1 - descuento)
+
+  return Math.round((total + Number.EPSILON) * 100) / 100
 }
 
 // ----------------------------------------------------------------------------
@@ -39,7 +48,10 @@ export function totalPedido(pedido) {
 // Un estado que no existe también es false.
 // Pista: ESTADOS ya es un arreglo ordenado. ¿Qué te dice indexOf?
 export function puedeTransicionar(actual, nuevo) {
-  return true // TODO: hoy acepta cualquier cosa. ¿Qué tan grave sería eso en producción?
+  const indiceActual = ESTADOS.indexOf(actual)
+  const indiceNuevo = ESTADOS.indexOf(nuevo)
+
+  return indiceActual !== -1 && indiceNuevo === indiceActual + 1
 }
 
 // ----------------------------------------------------------------------------
@@ -54,7 +66,25 @@ export function puedeTransicionar(actual, nuevo) {
 //                         correo: algo@algo.algo   (el email es opcional)
 // Pista: '55 1234-5678'.replace(/[\s-]/g, '')   y   /^\d{10}$/.test(...)
 export function validarCliente(cliente) {
-  return [] // TODO
+  const errores = []
+
+  if (!cliente.nombre || cliente.nombre.trim() === '') {
+    errores.push('nombre_requerido')
+  }
+
+  const telefono = (cliente.telefono || '').replace(/[\s-]/g, '')
+
+  if (!/^\d{10}$/.test(telefono)) {
+    errores.push('telefono_invalido')
+  }
+
+  const email = (cliente.email || '').trim()
+
+  if (email !== '' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    errores.push('email_invalido')
+  }
+
+  return errores
 }
 
 // ----------------------------------------------------------------------------
@@ -63,10 +93,22 @@ export function validarCliente(cliente) {
 // Devuelve un objeto con TODOS los estados como llave, aunque tengan 0:
 //   { registrado: 3, en_preparacion: 3, listo: 2, entregado: 2 }
 // Con una lista vacía, todos van en 0.
-export function resumenPorEstado(pedidos) {
-  return {} // TODO
-}
 
+export function resumenPorEstado(pedidos) {
+  const resumen = {}
+
+  ESTADOS.forEach(estado => {
+    resumen[estado] = 0
+  })
+
+  pedidos.forEach(pedido => {
+    if (ESTADOS.includes(pedido.estado)) {
+      resumen[pedido.estado]++
+    }
+  })
+
+  return resumen
+}
 // ----------------------------------------------------------------------------
 // MISIÓN 5 · RF5 — Buscar pedidos por nombre de cliente
 // ----------------------------------------------------------------------------
@@ -75,9 +117,25 @@ export function resumenPorEstado(pedidos) {
 // "José Martínez". Un texto vacío (o solo espacios) devuelve todos.
 // Pista: 'Ramírez'.normalize('NFD').replace(/[̀-ͯ]/g, '')
 //        Investiga qué hace NFD. Es un problema real en sistemas en español.
+
 export function buscarPedidos(pedidos, texto) {
-  return [] // TODO
+  const normalizar = texto =>
+    texto
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+
+  const busqueda = normalizar((texto || '').trim())
+
+  if (busqueda === '') {
+    return pedidos
+  }
+
+  return pedidos.filter(pedido =>
+    normalizar(pedido.cliente || '').includes(busqueda)
+  )
 }
+
 
 // ----------------------------------------------------------------------------
 // MISIÓN 6 · DESTACADO — Los mejores clientes
@@ -87,6 +145,34 @@ export function buscarPedidos(pedidos, texto) {
 // Formato: [{ cliente: 'Ana Ramírez', total: 1316 }, ...]
 // Orden: total de mayor a menor; si empatan, por nombre alfabético.
 // Pista: un objeto acumulador, luego Object.entries, map y sort.
+
 export function topClientes(pedidos, n) {
-  return [] // TODO
+  const gastos = {}
+
+  pedidos.forEach(pedido => {
+    const cliente = pedido.cliente
+
+    if (!cliente) return
+
+    if (!gastos[cliente]) {
+      gastos[cliente] = 0
+    }
+
+    gastos[cliente] += totalPedido(pedido)
+  })
+
+  return Object.entries(gastos)
+    .map(([cliente, total]) => ({
+      cliente,
+      total: Math.round((total + Number.EPSILON) * 100) / 100
+    }))
+    .sort((a, b) => {
+      if (b.total !== a.total) {
+        return b.total - a.total
+      }
+
+      return a.cliente.localeCompare(b.cliente, 'es')
+    })
+    .slice(0, Math.max(0, Math.floor(n)))
 }
+
